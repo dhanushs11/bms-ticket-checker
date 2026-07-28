@@ -1,0 +1,55 @@
+name: BMS Ticket Checker
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      movie:
+        description: "Movie name"
+        required: true
+        default: "Spider-Man"
+      city:
+        description: "City"
+        default: "chennai"
+      venue:
+        description: "Venue URL path"
+        default: "/cinemas/CHEN/pvr-palazzo-the-nexus-vijaya-mall/buytickets/PVPZ/20260730"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          python3 -m playwright install chromium
+          python3 -m playwright install-deps chromium
+
+      - name: Check tickets
+        id: check
+        env:
+          BMS_SMTP_HOST: ${{ secrets.BMS_SMTP_HOST }}
+          BMS_SMTP_PORT: ${{ secrets.BMS_SMTP_PORT }}
+          BMS_SMTP_USER: ${{ secrets.BMS_SMTP_USER }}
+          BMS_SMTP_PASS: ${{ secrets.BMS_SMTP_PASS }}
+          BMS_TO_EMAIL: ${{ secrets.BMS_TO_EMAIL }}
+          BMS_FROM_EMAIL: ${{ secrets.BMS_FROM_EMAIL }}
+        run: |
+          MOVIE="${{ github.event.inputs.movie || 'Spider-Man' }}"
+          CITY="${{ github.event.inputs.city || 'chennai' }}"
+          VENUE="${{ github.event.inputs.venue || '/cinemas/CHEN/pvr-palazzo-the-nexus-vijaya-mall/buytickets/PVPZ/20260730' }}"
+          python3 checker.py "$MOVIE" --city "$CITY" --venue "$VENUE" 2>&1 | tee output.txt
+          echo "result=$(cat output.txt)" >> $GITHUB_OUTPUT
+
+      - name: Send notification on success
+        if: ${{ contains(steps.check.outputs.result, 'Found!') && secrets.BMS_SMTP_HOST != '' }}
+        run: |
+          echo "Tickets found! Check above output."

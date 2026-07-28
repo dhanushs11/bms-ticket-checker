@@ -1,0 +1,14 @@
+services:
+  bms-checker:
+    build: .
+    command: ["Spider-Man", "--city", "chennai", "--venue", "/cinemas/CHEN/pvr-palazzo-the-nexus-vijaya-mall/buytickets/PVPZ/20260730", "--poll", "300"]
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Kolkata
+      # Optional: email alerts
+      # - BMS_SMTP_HOST=smtp.gmail.com
+      # - BMS_SMTP_PORT=587
+      # - BMS_SMTP_USER=you@gmail.com
+      # - BMS_SMTP_PASS=app-password
+      # - BMS_TO_EMAIL=you@gmail.com
+      # - BMS_FROM_EMAIL=you@gmail.com
