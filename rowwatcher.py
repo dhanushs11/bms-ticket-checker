@@ -204,11 +204,10 @@ class Watcher:
             )
             self.log(f"opening {buy_url}")
             page.goto(buy_url, wait_until="domcontentloaded", timeout=45000)
-            page.wait_for_timeout(6000)
-
-            content = (page.content() or "").lower()
-            if "attention required" in content or "cf-challenge" in content:
-                self.log("CLOUDFLARE CHALLENGE — aborting cycle")
+            ok_page = self.wait_through_cloudflare(page, budget_seconds=75)
+            if not ok_page:
+                self.log("CLOUDFLARE challenge did not clear — aborting cycle")
+                self.dump_state(page)
                 return self.finish("blocked")
             if self.a.debug_dump:
                 self.a.debug_dump.write_text(page.content())
@@ -303,6 +302,11 @@ class Watcher:
         )
         self.log(f"checking {key} {sess.get('showTime','?')} …")
         page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        if not self.wait_through_cloudflare(page, budget_seconds=45):
+            hits = []
+            self.log("  CLOUDFLARE challenge on seat page — unknown")
+            self.push_unknown(key, sess, "Cloudflare challenge")
+            return
         count = 0
         is_error = False
         deadline = time.time() + 30
@@ -358,12 +362,53 @@ class Watcher:
                 self.log(f"  walk failed: {e}")
         if not seats:
             reason = "BMS connectivity error" if is_error else "seat map never loaded"
-            self.log(f"  UNKNOWN for {key}: {reason} (state untouched)")
-            self.summary_lines.append(f"- `{key}` {sess.get('showTime','')}: ⚠️ {reason} (reported as unknown)")
+            self.push_unknown(key, sess, reason)
             return
         hits = seat_hits(seats, wanted_rows)
         self.log(f"  seats={len(seats)} A–G-available={len(hits)}")
         self.push_result(key, venue_name, sess, hits, url, len(seats))
+
+    def dump_state(self, page):
+        try:
+            out = Path(os.getenv("BMS_DEBUG_OUT", "/tmp/rowwatch-debug"))
+            out.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(out / f"page-{int(time.time())}.png"))
+            (out / "last-page.html").write_text(page.content() or "")
+        except Exception as e:
+            self.log(f"debug dump failed: {e}")
+
+    def wait_through_cloudflare(self, page, budget_seconds=75):
+        """Return True once the page is beyond a Cloudflare challenge.
+        Detects CF interstitials and waits (real Chrome often auto-clears them)."""
+        def looks_blocked(low):
+            needles = ("attention required", "cf-chl", "challenge-platform/form",
+                       "verifying you are human", "just a moment", "enable javascript and cookies")
+            return any(n in low for n in needles)
+
+        deadline = time.time() + budget_seconds
+        tried_refresh = False
+        while time.time() < deadline:
+            try:
+                low = (page.content() or "").lower()
+                title = (page.title() or "").lower()
+                url = page.url or ""
+            except Exception:
+                page.wait_for_timeout(2000)
+                continue
+            if looks_blocked(low) or looks_blocked(title):
+                if (not tried_refresh) and "just a moment" in low and time.time() > deadline - budget_seconds / 2:
+                    tried_refresh = True
+                page.wait_for_timeout(2500)
+                continue
+            # also require the app to actually own the page
+            if "bookmyshow" in url or "buytickets" in url or "seat-layout" in url:
+                if "book" in title or "movie" in title or "showtime" in title or "ticket" in title:
+                    return True
+            page.wait_for_timeout(2000)
+        return False
+    def push_unknown(self, key, sess, reason):
+        self.log(f"  UNKNOWN for {key}: {reason} (state untouched)")
+        self.summary_lines.append(f"- `{key}` {sess.get('showTime','')}: ⚠️ {reason} (reported as unknown)")
 
     # ------------------------------------------------------------ results
     def push_result(self, key, venue_name, sess, hits, url, total_seats):

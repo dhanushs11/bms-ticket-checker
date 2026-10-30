@@ -62,6 +62,7 @@ jobs:
           BMS_ROWS: ${{ github.event.inputs.rows || 'A-G' }}
           BMS_STATE_FILE: row_state.json
           BMS_BUDGET: "360"
+          BMS_DEBUG_OUT: ${{ github.workspace }}/debug
           BMS_SMTP_HOST: ${{ secrets.BMS_SMTP_HOST }}
           BMS_SMTP_PORT: ${{ secrets.BMS_SMTP_PORT }}
           BMS_SMTP_USER: ${{ secrets.BMS_SMTP_USER }}
@@ -69,6 +70,14 @@ jobs:
           BMS_TO_EMAIL: ${{ secrets.BMS_TO_EMAIL }}
           BMS_FROM_EMAIL: ${{ secrets.BMS_FROM_EMAIL }}
         run: xvfb-run -a python rowwatcher.py
+
+      - name: Upload debug captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-captures-${{ github.run_id }}
+          path: debug
+          if-no-files-found: ignore
 
       - name: Save state snapshot
         if: always()
