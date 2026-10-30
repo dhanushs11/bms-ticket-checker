@@ -2,7 +2,7 @@ name: BMS Ticket Checker
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # - cron: "*/10 * * * *"   # disabled 2026-10-30: superseded by rowwatch.yml
   workflow_dispatch:
     inputs:
       movie:
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |

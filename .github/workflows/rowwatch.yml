@@ -1,0 +1,87 @@
+name: Rows A–G watcher (Ramayana IMAX, Chennai, 05 Nov)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 min (GitHub's minimum reliable interval)
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Date code (YYYYMMDD)"
+        default: "20261105"
+        required: false
+      rows:
+        description: "Rows to watch (comma list, or A-G range)"
+        default: "A-G"
+        required: false
+
+concurrency:
+  group: rowwatch
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rowwatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/ms-playwright
+            row_state.json
+          key: rowwatch-${{ github.run_id }}
+          restore-keys: |
+            rowwatch-
+
+      - name: Install
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y xvfb
+          pip install -r requirements.txt
+          python -m playwright install chromium
+          python -m playwright install-deps chromium || true
+
+      - name: Watch rows A–G
+        env:
+          BMS_EVENT_CODE: ET00523158
+          BMS_DATE: ${{ github.event.inputs.date || '20261105' }}
+          BMS_CITY: chennai
+          BMS_SLUG: chen
+          BMS_REGION: CHEN
+          BMS_LANGUAGE: hindi
+          BMS_ROWS: ${{ github.event.inputs.rows || 'A-G' }}
+          BMS_STATE_FILE: row_state.json
+          BMS_BUDGET: "360"
+          BMS_SMTP_HOST: ${{ secrets.BMS_SMTP_HOST }}
+          BMS_SMTP_PORT: ${{ secrets.BMS_SMTP_PORT }}
+          BMS_SMTP_USER: ${{ secrets.BMS_SMTP_USER }}
+          BMS_SMTP_PASS: ${{ secrets.BMS_SMTP_PASS }}
+          BMS_TO_EMAIL: ${{ secrets.BMS_TO_EMAIL }}
+          BMS_FROM_EMAIL: ${{ secrets.BMS_FROM_EMAIL }}
+        run: xvfb-run -a python rowwatcher.py
+
+      - name: Save state snapshot
+        if: always()
+        run: |
+          if [ -f row_state.json ]; then
+            cp row_state.json state-latest.json
+          fi
+
+      - name: Upload state artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rowwatch-state-${{ github.run_id }}
+          path: |
+            row_state.json
+          if-no-files-found: ignore

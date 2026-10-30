@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .env
 output.txt
+bms-repo/row_state.json
