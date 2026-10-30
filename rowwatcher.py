@@ -175,6 +175,14 @@ class Watcher:
                 "headless": self.a.headless,
                 "args": ["--disable-blink-features=AutomationControlled", "--disable-infobars"],
             }
+            proxy_url = os.getenv("BMS_PROXY_URL", "").strip()
+            if proxy_url:
+                from urllib.parse import urlparse
+                p = urlparse(proxy_url)
+                server = f"{p.scheme or 'http'}://{p.netloc.split('@')[-1]}"
+                if p.username:
+                    launch_kwargs["proxy"] = {"server": server, "username": p.username, "password": p.password or ""}
+                    self.log(f"proxy: through {server} (residential)")
             browser, flavor = None, "bundled"
             for channel in [os.getenv("BMS_BROWSER_CHANNEL") or "chrome", None]:
                 try:

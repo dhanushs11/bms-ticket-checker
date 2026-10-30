@@ -2,7 +2,12 @@ name: Rows A–G watcher (Ramayana IMAX, Chennai, 05 Nov)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 min (GitHub's minimum reliable interval)
+    # NOTE (2026-10-30): BookMyShow hard-blocks GitHub runner IPs
+    # ("Sorry, you have been blocked"). The schedule is disabled until a
+    # residential egress is available: set the BMS_PROXY_URL secret
+    # (http://user:pass@host:port or socks5://user:pass@host:port) and then
+    # re-enable the line below.
+    # - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       date:
@@ -63,6 +68,7 @@ jobs:
           BMS_STATE_FILE: row_state.json
           BMS_BUDGET: "360"
           BMS_DEBUG_OUT: ${{ github.workspace }}/debug
+          BMS_PROXY_URL: ${{ secrets.BMS_PROXY_URL }}
           BMS_SMTP_HOST: ${{ secrets.BMS_SMTP_HOST }}
           BMS_SMTP_PORT: ${{ secrets.BMS_SMTP_PORT }}
           BMS_SMTP_USER: ${{ secrets.BMS_SMTP_USER }}
